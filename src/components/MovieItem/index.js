@@ -1,9 +1,10 @@
+import {Link} from 'react-router-dom'
 import './index.css'
 
 const MovieItem = ({movie}) => (
-  <li className="movie-item">
+  <Link to={`/movies/${movie.id}`} className="movie-item">
     <img src={movie.imageUrl} alt="Movie Poster" />
-  </li>
+  </Link>
 )
 
 export default MovieItem

@@ -9,14 +9,20 @@ import 'react-loader-spinner/dist/loader/css/react-spinner-loader.css'
 import './index.css'
 
 class Home extends Component {
-  state = {isLoading: true, moviesData: []}
-
-  componentDidMount() {
-    this.fetchTrendingMovies()
+  state = {
+    isLoading: true,
+    trendingMovies: [],
+    topRatedMovies: [],
+    originals: [],
+    searchQuery: '', // eslint-disable-line no-unused-vars
   }
 
-  fetchTrendingMovies = async () => {
-    const apiUrl = 'https://apis.ccbp.in/movies-app/trending-movies'
+  componentDidMount() {
+    this.fetchMovies()
+  }
+
+  fetchMovies = async () => {
+    const {searchQuery} = this.state
     const jwtToken = Cookies.get('jwt_token')
     const options = {
       headers: {
@@ -24,39 +30,111 @@ class Home extends Component {
       },
       method: 'GET',
     }
-    const response = await fetch(apiUrl, options)
-    if (response.ok === true) {
-      const fetchedData = await response.json()
-      const updatedData = fetchedData.results.map(movie => ({
-        imageUrl: movie.backdrop_path,
-        id: movie.id,
-      }))
-      this.setState({
-        moviesData: updatedData,
-        isLoading: false,
-      })
+
+    let trendingMoviesApi = 'https://apis.ccbp.in/movies-app/trending-movies'
+    let topRatedMoviesApi = 'https://apis.ccbp.in/movies-app/top-rated-movies'
+    let originalsApi = 'https://apis.ccbp.in/movies-app/originals'
+
+    // Modify API endpoints if there is a search query
+    if (searchQuery) {
+      trendingMoviesApi = `https://apis.ccbp.in/movies-app/movies-search?search=${searchQuery}`
+      topRatedMoviesApi = `https://apis.ccbp.in/movies-app/movies-search?search=${searchQuery}`
+      originalsApi = `https://apis.ccbp.in/movies-app/movies-search?search=${searchQuery}`
+    }
+
+    try {
+      const [
+        trendingResponse,
+        topRatedResponse,
+        originalsResponse,
+      ] = await Promise.all([
+        fetch(trendingMoviesApi, options),
+        fetch(topRatedMoviesApi, options),
+        fetch(originalsApi, options),
+      ])
+
+      if (trendingResponse.ok && topRatedResponse.ok && originalsResponse.ok) {
+        const trendingData = await trendingResponse.json()
+        const topRatedData = await topRatedResponse.json()
+        const originalsData = await originalsResponse.json()
+
+        const updateData = data =>
+          data.results.map(movie => ({
+            imageUrl: movie.backdrop_path,
+            id: movie.id,
+            title: movie.title,
+          }))
+
+        console.log('Trending Movies:', trendingData) // Log fetched data
+        console.log('Top Rated Movies:', topRatedData)
+        console.log('Originals:', originalsData)
+
+        this.setState({
+          trendingMovies: updateData(trendingData),
+          topRatedMovies: updateData(topRatedData),
+          originals: updateData(originalsData),
+          isLoading: false,
+        })
+      } else {
+        // Handle fetch errors
+        console.error('Failed to fetch movies data')
+        this.setState({isLoading: false})
+      }
+    } catch (error) {
+      // Handle network errors
+      console.error('Error fetching movies data:', error)
+      this.setState({isLoading: false})
     }
   }
 
+  handleSearchChange = event => {
+    const {value} = event.target
+    this.setState({searchQuery: value}, () => {
+      // Fetch movies immediately after updating searchQuery
+      this.fetchMovies()
+    })
+  }
+
+  renderMoviesList = movies => (
+    <ul className="movies-list">
+      {movies.map(movie => (
+        <MovieItem key={movie.id} movie={movie} />
+      ))}
+    </ul>
+  )
+
   render() {
-    const {moviesData, isLoading} = this.state
+    const {trendingMovies, topRatedMovies, originals, isLoading} = this.state
 
     return (
       <div className="home-page">
-        <Header />
+        <Header handleSearchChange={this.handleSearchChange} />
+
         <HeroSection />
+
         <div className="content">
-          <h2 className="trending-heading">Trending Now</h2>
+          <h2 className="section-heading">Trending Now</h2>
           {isLoading ? (
             <Loader type="TailSpin" color="#00BFFF" height={50} width={50} />
           ) : (
-            <ul>
-              {moviesData.map(movie => (
-                <MovieItem key={movie.id} movie={movie} />
-              ))}
-            </ul>
+            this.renderMoviesList(trendingMovies)
+          )}
+
+          <h2 className="section-heading">Top Rated</h2>
+          {isLoading ? (
+            <Loader type="TailSpin" color="#00BFFF" height={50} width={50} />
+          ) : (
+            this.renderMoviesList(topRatedMovies)
+          )}
+
+          <h2 className="section-heading">Originals</h2>
+          {isLoading ? (
+            <Loader type="TailSpin" color="#00BFFF" height={50} width={50} />
+          ) : (
+            this.renderMoviesList(originals)
           )}
         </div>
+
         <Footer />
       </div>
     )
